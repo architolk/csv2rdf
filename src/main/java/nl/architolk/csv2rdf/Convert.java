@@ -1,19 +1,19 @@
 package nl.architolk.csv2rdf;
 
-import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.Reader;
+import java.util.Map;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVRecord;
 import org.apache.jena.rdf.model.Model;
-import org.apache.jena.riot.RDFDataMgr;
-import org.apache.jena.riot.RDFFormat;
+import org.apache.jena.rdf.model.Model;
+import org.apache.jena.rdf.model.ModelFactory;
+import org.apache.jena.rdf.model.Property;
+import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.rdf.model.ResourceFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.File;
-import java.util.List;
-import java.util.Map;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.csv.CsvMapper;
-import com.fasterxml.jackson.dataformat.csv.CsvSchema;
 
 public class Convert {
 
@@ -28,20 +28,25 @@ public class Convert {
       LOG.info("Ouput file: {}",args[1]);
 
       try {
-        File input = new File(args[0]);
-        File output = new File(args[1]);
 
-        CsvSchema csvSchema = CsvSchema.builder().setUseHeader(true).build();
-        CsvMapper csvMapper = new CsvMapper();
+        Model model = ModelFactory.createDefaultModel();
 
-        // Read data from CSV file
-        List<Object> readAll = csvMapper.readerFor(Map.class).with(csvSchema).readValues(input).readAll();
+        Reader in = new FileReader(args[0]);
+        Iterable<CSVRecord> records = CSVFormat.DEFAULT.withFirstRecordAsHeader().parse(in);
+        for (CSVRecord record : records) {
+          Map<String,String> map = record.toMap();
+          for (Map.Entry<String, String> entry : map.entrySet())
+          {
+              String value = entry.getValue();
+              Resource resource = model.createResource("http://csvrecord/id/row/" + record.getRecordNumber());
+              Property property = ResourceFactory.createProperty("http://csvrecord/def#" + entry.getKey());
+              if (!value.isEmpty()) {
+                resource.addProperty(property,entry.getValue());
+              }
+          }
+        }
 
-        ObjectMapper mapper = new ObjectMapper();
-
-        // Write JSON formated data to output.json file
-        mapper.writerWithDefaultPrettyPrinter().writeValue(output, readAll);
-
+        model.write(new FileWriter(args[1]),"TURTLE");
         LOG.info("Done!");
       }
       catch (Exception e) {
